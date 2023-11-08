@@ -149,5 +149,23 @@ def gen_report(report_name, metrics, users):
 
     logging.info("report was created")
 
+def get_reports_in_date_range(report_data, from_date, to_date):
+    reports = []
+
+    for user_id, user_metrics in report_data.items():
+        user_report = {"userId": user_id, "metrics": []}
+        for metric_name, metric_value in user_metrics.items():
+            if metric_name != "total" and isinstance(metric_value, dict):
+                for date, value in metric_value.items():
+                    metric_date = parse(date)
+                    if from_date <= metric_date <= to_date:
+                        user_report["metrics"].append({metric_name: value})
+
+        if user_report["metrics"]:
+            reports.append(user_report)
+
+    return reports
+
+
 if __name__ == "__main__":
     fetch_and_update_data()

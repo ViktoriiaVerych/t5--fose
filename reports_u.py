@@ -1,8 +1,11 @@
+import os
 import logging
 import unittest
 from datetime import datetime, timedelta
 import json
 from unittest.mock import patch, mock_open
+from data_procession import calculate_average_times, calculate_min_max,generate_report, get_reports_in_date_range
+from dateutil.parser import parse
 
 now = datetime.now().isoformat()
 TEN_SECONDS = 10
@@ -50,6 +53,83 @@ def generate_report(report_name, report_fields, user_ids):
     report_data = {}
     # Report generation logic here
     return report_data
+
+
+class TestIntegrationGenerateAndFilterReport(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        all_data = [
+            {
+                "userId": "user1",
+                "onlinePeriods": [["2023-10-15T08:00:00.000000", "2023-10-15T12:00:00.000000"]],
+                "totalSecondsOnline": 14400,
+            },
+            {
+                "userId": "user2",
+                "onlinePeriods": [["2023-10-15T09:00:00.000000", "2023-10-15T11:00:00.000000"]],
+                "totalSecondsOnline": 7200,
+            },
+        ]
+
+        with open("all_data.json", "w") as f:
+            json.dump(all_data, f)
+
+    @classmethod
+    def tearDownClass(cls):
+        # Delete test data files
+        file_paths = ["all_data.json", "integration_test_report.json"]
+        for file_path in file_paths:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+
+    def setUp(self):
+        self.all_data = [
+            {
+                "userId": "user1",
+                "onlinePeriods": [["2023-10-15T08:00:00.000000", "2023-10-15T12:00:00.000000"]],
+                "totalSecondsOnline": 14400,
+            },
+            {
+                "userId": "user2",
+                "onlinePeriods": [["2023-10-15T09:00:00.000000", "2023-10-15T11:00:00.000000"]],
+                "totalSecondsOnline": 7200,
+            },
+        ]
+
+    def test_integration_generate_and_filter_report(self):
+        generate_report("integration_test_report", ["total"], ["user1", "user2"])
+
+        from_date = parse("2023-10-15T08:00:00.000000")
+        to_date = parse("2023-10-15T11:00:00.000000")
+
+        with patch("builtins.open", new_callable=mock_open) as mock_file:
+            mock_file.return_value.__enter__.return_value.read.return_value = json.dumps(generated_report_data)
+
+            filtered_reports = get_reports_in_date_range(generated_report_data, from_date, to_date)
+
+        self.assertEqual(len(filtered_reports), 0)
+
+    @patch("builtins.open", new_callable=mock_open)
+    def test_generate_report(self, mock_open):
+        with patch("json.dump") as mock_dump:
+            generate_report("integration_test_report", ["total"], ["user1", "user2"])
+
+            mock_dump.assert_called_once_with(self.all_data, mock_open())
+
+    def test_get_reports_in_date_range(self):
+        generated_report_data = self.all_data
+
+        from_date = parse("2023-10-15T08:00:00.000000")
+        to_date = parse("2023-10-15T11:00:00.000000")
+
+        filtered_reports = get_reports_in_date_range(generated_report_data, from_date, to_date)
+
+        self.assertEqual(len(filtered_reports), 0)
+
+    def test_validate_input_data(self):
+        for data in self.all_data:
+            for key in data.keys():
+                self.assertIsInstance(data[key], str, f"Invalid {key}")
 
 if __name__ == "__main__":
     logging.basicConfig(filename='app.log', level=logging.DEBUG)
