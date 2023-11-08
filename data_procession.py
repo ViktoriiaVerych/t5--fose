@@ -1,3 +1,5 @@
+import logging
+import ijson
 import requests
 import json
 import time
@@ -105,6 +107,47 @@ def save_deleted_users(deleted_users):
         json.dump(list(deleted_users), f)
 
 deleted_users = load_deleted_users()
+
+
+def calculate_min_max(user):
+    daily_times = []
+    for period in user['onlinePeriods']:
+        start_time = parse(period[0])
+        end_time = parse(period[1]) if period[1] else datetime.now()
+        daily_times.append((end_time - start_time).total_seconds())
+    return min(daily_times), max(daily_times)
+
+def gen_report(report_name, metrics, users):
+    with open('all_data.json', 'r') as f:
+        all_data = ijson.items(f, 'item')
+        with open(f'{report_name}.json', 'w') as f:
+            for user in all_data:
+                if user['userId'] not in users:
+                    continue
+                user_report = {}
+                for metric in metrics:
+                    if metric == 'min' or metric == 'max':
+                        min_time, max_time = calculate_min_max(user)
+                        if 'min' in metrics:
+                            user_report['min'] = min_time
+                            json.dump(user_report, f)
+                        if 'max' in metrics:
+                            user_report['max'] = max_time
+                            json.dump(user_report, f)
+                    else:
+                        if metric == 'dailyAverage':
+                            _, daily_average = calculate_average_times(user)
+                            user_report['dailyAverage'] = daily_average
+                            json.dump(user_report, f)
+                        if metric == 'weeklyAverage':
+                            weekly_average, _ = calculate_average_times(user)
+                            user_report['weeklyAverage'] = weekly_average
+                            json.dump(user_report, f)
+                        if metric == 'total':
+                            user_report['total'] = calculate_online_time(user)
+                            json.dump(user_report, f)
+
+    logging.info("report was created")
 
 if __name__ == "__main__":
     fetch_and_update_data()
